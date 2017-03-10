@@ -48,10 +48,15 @@ extern "C"
 #include <vnl/vnl_matrix_fixed.h>
 #include "MyMRI.h"
 #include "MyMatrix.h"
-#include "Regression.h"
 #include "Quaternion.h"
 #include "Transformation.h"
 #include "RegRobust.h"
+
+#include "Regression.h"
+#ifdef FS_CUDA
+  #include "RegressionCuda.h"
+#endif
+
 
 template<class T>
 class RegistrationStep
@@ -208,8 +213,12 @@ std::pair<vnl_matrix_fixed<double, 4, 4>, double> RegistrationStep<T>::computeRe
   else
   {
     //std::cout << "Rtype  " << rtype << std::endl;
+    struct timeb startAb;
+    TimerStart(&startAb);
 
     constructAb(mriS, mriT, A, b);
+    
+    std::cout << std::endl << "time constructAB total: " << ((float) TimerStop(&startAb) / 1000.0f) << std::endl;
   }
 
   if (verbose > 1)
@@ -223,11 +232,17 @@ std::pair<vnl_matrix_fixed<double, 4, 4>, double> RegistrationStep<T>::computeRe
   if (verbose > 1)
     std::cout << "  DONE" << std::endl;
 
-  Regression<T> R(A, b);
-  R.setVerbose(verbose);
-  R.setFloatSvd(floatsvd);
   if (costfun == Registration::ROB)
   {
+    struct timeb startreg;
+    TimerStart(&startreg);
+#ifdef FS_CUDA
+    RegressionCuda<T> R(A, b);
+#else
+    Regression<T> R(A, b);
+#endif
+    R.setVerbose(verbose);
+    R.setFloatSvd(floatsvd);
     vnl_vector<T> w;
     if (verbose > 1)
       std::cout << "   - compute robust estimate ( sat " << sat << " )..."
@@ -236,6 +251,8 @@ std::pair<vnl_matrix_fixed<double, 4, 4>, double> RegistrationStep<T>::computeRe
       pvec = R.getRobustEstW(w);
     else
       pvec = R.getRobustEstW(w, sat);
+    
+    std::cout << std::endl << "time Regression total: " << ((float) TimerStop(&startreg) / 1000.0f) << std::endl;
 
     A.clear();
     b.clear();
@@ -250,6 +267,8 @@ std::pair<vnl_matrix_fixed<double, 4, 4>, double> RegistrationStep<T>::computeRe
 //    std::cout.precision(8);
 
     // transform weights vector back to 3d (mri real)
+    struct timeb startweights;
+    TimerStart(&startweights);
     if (mri_weights
         && (mri_weights->width != mriS->width
             || mri_weights->height != mriS->height
@@ -335,9 +354,17 @@ std::pair<vnl_matrix_fixed<double, 4, 4>, double> RegistrationStep<T>::computeRe
 //       exit(1);
 //    }
 
+  //  zeroweights = R.getLastZeroWeightPercent();
+    zeroweights = R.getLastWeightPercent(); // does not need pointers A and B to be valid
+
+    std::cout << std::endl << "time weights total: " << ((float) TimerStop(&startweights) / 1000.0f) << std::endl;
+  //  R.plotPartialSat(name);
   }
   else
   {
+    Regression<T> R(A, b);
+    R.setVerbose(verbose);
+    R.setFloatSvd(floatsvd);
     if (verbose > 1)
       std::cout << "   - compute least squares estimate ..." << std::flush;
     pvec = R.getLSEst();
@@ -349,12 +376,12 @@ std::pair<vnl_matrix_fixed<double, 4, 4>, double> RegistrationStep<T>::computeRe
     // no weights in this case
     if (mri_weights)
       MRIfree(&mri_weights);
+  //  zeroweights = R.getLastZeroWeightPercent();
+    zeroweights = R.getLastWeightPercent(); // does not need pointers A and B to be valid
+  //  R.plotPartialSat(name);
   }
 
-//  zeroweights = R.getLastZeroWeightPercent();
-  zeroweights = R.getLastWeightPercent(); // does not need pointers A and B to be valid
 
-//  R.plotPartialSat(name);
 
 //   if (mriS->depth ==1 || mriT->depth ==1)
 //   {
@@ -406,6 +433,10 @@ void RegistrationStep<T>::constructAb(MRI *mriS, MRI *mriT, vnl_matrix<T>& A,
     }
     is2d = true;
   }
+
+  struct timeb start;
+  TimerStart(&start);
+    
 
   // Allocate and initialize indexing volume
   int z, y, x, f;
@@ -515,6 +546,11 @@ void RegistrationStep<T>::constructAb(MRI *mriS, MRI *mriT, vnl_matrix<T>& A,
     fz = fz1;
     ft = ft1;
   }
+
+  std::cout << std::endl << "time init: " << ((float) TimerStop(&start) / 1000.0f) << std::endl;
+  struct timeb start2;
+  TimerStart(&start2);
+
 
 //cout << " size fx : " << fx->width << " , " << fx->height << " , " << fx->depth << std::endl;
 //cout << " size src: " << mriS->width << " , " << mriS->height << " , " << mriS->depth << std::endl;
@@ -633,6 +669,11 @@ void RegistrationStep<T>::constructAb(MRI *mriS, MRI *mriT, vnl_matrix<T>& A,
     std::cerr << std::endl;
     exit(1);
   }
+
+  std::cout << std::endl << "time index: " << ((float) TimerStop(&start2) / 1000.0f) << std::endl;
+  struct timeb start3;
+  TimerStart(&start3);
+
 
   if (verbose > 1)
     cout << "     -- nans: " << ncount << " zeros: " << zcount << " outside: "
@@ -904,6 +945,7 @@ void RegistrationStep<T>::constructAb(MRI *mriS, MRI *mriT, vnl_matrix<T>& A,
         //cout << " ocount : " << ocount << endl;    
         //cout << " counti: " << counti << " count : " << count<< endl;    
   assert(counti == count);
+  std::cout << std::endl << "time fill Ab: " << ((float) TimerStop(&start3) / 1000.0f) << std::endl;
 
 //   vnl_matlab_print(vcl_cerr,A,"A",vnl_matlab_print_format_long);std::cerr << std::endl;    
 //   vnl_matlab_print(vcl_cerr,b,"b",vnl_matlab_print_format_long);std::cerr << std::endl;    

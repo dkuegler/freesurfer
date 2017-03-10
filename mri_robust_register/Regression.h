@@ -50,7 +50,7 @@ extern "C"
 #include <vnl/vnl_vector.h>
 #include <vnl/vnl_matrix.h>
 
-/** \class Transform3dTranslate
+/** \class Regression
  * \brief Templated class for iteratively reweighted least squares
  */
 template<class T>
@@ -121,9 +121,14 @@ protected:
   T getSigmaMAD(const vnl_vector<T>& r, T d = 1.4826);
   T VectorMedian(const vnl_vector<T>& v);
 
-  void getSqrtTukeyDiaWeights(const vnl_vector<T>& r, vnl_vector<T> &w, double sat = SATr);
+  void getSqrtTukeyDiaWeights(const vnl_vector<T>& r, vnl_vector<T> &w, double sigma, double sat = SATr);
   void getTukeyBiweight(const vnl_vector<T>& r, vnl_vector<T> &w, double sat = SATr);
   double getTukeyPartialSat(const vnl_vector<T>& r, double sat = SATr);
+
+  void saveMatrix(const std::string& fname, const vnl_matrix<T> * M);
+  void saveVector(const std::string& fname, const vnl_vector<T> * v);
+  void saveMatrixF(const std::string& fname, const vnl_matrix<float> * M);
+  void saveVectorF(const std::string& fname, const vnl_vector<float> * v);
 
 private:
   vnl_matrix<T> * A;

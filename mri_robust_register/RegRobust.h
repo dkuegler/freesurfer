@@ -184,11 +184,14 @@ void RegRobust::iterativeRegistrationHelper(int nmax, double epsit, MRI * mriS,
         std::cout << " (subsample " << subsamplesize << ") " << std::flush;
     if (verbose > 1)
       std::cout << std::endl;
+    struct timeb startmap;
+    TimerStart(&startmap);
 
     // map source (and if symmetric also target) to new space for next iteration
     // get mri_?warp and half way maps (mh, mhi):
     mapToNewSpace(fmd.first, iscalefinal, mriS, mriT, mri_Swarp, mri_Twarp, mh,
         mhi);
+    std::cout << std::endl << "time mapping total: " << ((float) TimerStop(&startmap) / 1000.0f) << std::endl;
 
     if (debug > 0)
     {
@@ -207,11 +210,14 @@ void RegRobust::iterativeRegistrationHelper(int nmax, double epsit, MRI * mriS,
     //
     // compute Registration
     //
+    struct timeb startreg;
+    TimerStart(&startreg);
     if (verbose > 1)
       std::cout << "   - compute new registration" << std::endl;
     cmd = RStep.computeRegistrationStep(mri_Swarp, mri_Twarp);
     wcheck = RStep.getwcheck();
     wchecksqrt = RStep.getwchecksqrt();
+    std::cout << std::endl << "time registration total: " << ((float) TimerStop(&startreg) / 1000.0f) << std::endl;
     // ==========================================================================
 
     // store M and d

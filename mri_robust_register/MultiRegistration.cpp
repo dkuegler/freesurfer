@@ -1960,14 +1960,8 @@ MRI* MultiRegistration::averageSet(const std::vector<MRI *>& set, MRI* mean,
         {
           for (i = 0; i < (int) set.size(); i++)
             dd[i] = MRIgetVoxVal(set[i], x, y, z, 0);
-          pair<float, float> mm = RobustGaussian<float>::medianI(dd,
-              (int) set.size());
-          MRIsetVoxVal(mean, x, y, z, 0, mm.first);
-          //MRIsetVoxVal(midx,x,y,z,0,mm.second);
+          MRIsetVoxVal(mean, x, y, z, 0, RobustGaussian<float>::median(dd, (int) set.size()));
         }
-      //MRIwrite(midx,"midx.mgz");
-      //MRIwrite(mean,"m.mgz");
-      //assert(1==2);
     }
   }
   else if (method == 2) // NEVER REALLY WORKED!! (not enough values and usually int)
@@ -1975,8 +1969,6 @@ MRI* MultiRegistration::averageSet(const std::vector<MRI *>& set, MRI* mean,
     cout << "    using tukey biweight" << endl;
     // robust tukey biweight
     int x, y, z, i;
-//     MATRIX* b = MatrixAlloc(set.size(),1,MATRIX_REAL);
-//     pair < MATRIX* , MATRIX* >  muw;
     vnl_vector<float> b(set.size());
     assert(set.size() > 0);
     if (!mean)
@@ -2011,10 +2003,6 @@ MRI* MultiRegistration::averageSet(const std::vector<MRI *>& set, MRI* mean,
     // robust tukey biweight
     int x, y, z, i;
     int n = set[0]->depth * set[0]->height * set[0]->width;
-//     MATRIX* b = MatrixAlloc(set.size()*n,1,MATRIX_REAL);
-//     MATRIX* A = MatrixAlloc(set.size()*n,n,MATRIX_REAL);
-//     A = MatrixZero(A->rows,A->cols,A);
-//     pair < MATRIX* , MATRIX* >  muw;
     vnl_matrix<float> A(set.size() * n, n);
     vnl_vector<float> b(set.size() * n);
     A.fill(0.0);
@@ -2034,9 +2022,6 @@ MRI* MultiRegistration::averageSet(const std::vector<MRI *>& set, MRI* mean,
           {
             // cout << " x: " << x << " y: " << y << " z: " <<z << "  size: " << set.size() <<endl;
             //cout << "i: " << i << endl;
-//             b->rptr[pcount*set.size()+i+1][1] =
-//               MRIgetVoxVal(set[i],x,y,z,0);
-//             A->rptr[pcount*set.size()+i+1][pcount+1] = 1;
             b[pcount * set.size() + i] = MRIgetVoxVal(set[i], x, y, z, 0);
             A[pcount * set.size() + i][pcount] = 1.0;
             pcount++;
@@ -2059,8 +2044,6 @@ MRI* MultiRegistration::averageSet(const std::vector<MRI *>& set, MRI* mean,
           MRIsetVoxVal(mean, x, y, z, 0, p[pcount]);
           pcount++;
         }
-    //MatrixFree(&muw.first);
-    //MatrixFree(&muw.second);
 
   }
   else

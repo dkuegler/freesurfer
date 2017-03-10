@@ -28,14 +28,6 @@
 #include <stdio.h>
 #include <cmath>
 #include <iostream>
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-#include "error.h"
-#ifdef __cplusplus
-}
-#endif
 
 using namespace std;
 
@@ -63,8 +55,13 @@ pair<T, int> RobustGaussian<T>::quick_selectI(T arr[], int n, int k)
 
   int* pos = (int *) calloc(n, sizeof(int));
   if (pos == NULL)
-    ErrorExit(ERROR_NO_MEMORY,
-        "RobustGaussian<T>::quick_selectI could not allocate memory for pos");
+  {
+    //ErrorExit(ERROR_NO_MEMORY,
+    //    "RobustGaussian<T>::quick_selectI could not allocate memory for pos");
+    cerr << "ERROR: RobustGaussian<T>::quick_selectI could not allocate memory for pos" << endl;
+    exit(1);
+  }
+    
   for (int i = 0; i < n; i++)
     pos[i] = i;
 
@@ -237,8 +234,12 @@ std::pair<T, int> RobustGaussian<T>::kth_smallestI(T a[], int n, int k)
 
   int* pos = (int *) calloc(n, sizeof(int));
   if (pos == NULL)
-    ErrorExit(ERROR_NO_MEMORY,
-        "RobustGaussian<T>::kth_smallestI could not allocate memory for pos");
+  {
+    //ErrorExit(ERROR_NO_MEMORY,
+    //    "RobustGaussian<T>::kth_smallestI could not allocate memory for pos");
+    cerr << "RobustGaussian<T>::kth_smallestI could not allocate memory for pos" << endl;
+    exit(1);
+  }
   for (int i = 0; i < n; i++)
     pos[i] = i;
 
@@ -320,34 +321,6 @@ T RobustGaussian<T>::kth_smallest(T a[], int n, int k)
 #undef ELEM_SWAPD
 #undef ELEM_SWAPI
 
-/** Compute median in situ, t will be reordered.
- The index (return.second ) is type double or float because with even number of elements, we will lie between two indices.
- */
-template<class T>
-pair<T, T> RobustGaussian<T>::medianI(T t[], int n)
-{
-
-  pair<T, int> qs;
-  if (n % 2 == 1) //odd
-  {
-    qs = kth_smallestI(t, n, (n + 1) / 2);
-    //cout << " n: " << n << "   " << qs << endl;
-    //free(t);
-    return pair<T, T>(qs.first, (T) qs.second);
-  }
-
-  //  else even:
-
-//  qs = kth_smallest(t,n,n/2);
-  qs = quick_selectI(t, n, n / 2);
-// double qs2 = kth_smallest(t,n,n/2 + 1);
-  pair<T, int> qs2 = quick_selectI(t, n, n / 2 + 1);
-  //cout << " n: " << n << "   " << qs << "   " << qs2 << endl;
-
-  return pair<T, T>(0.5 * (qs.first + qs2.first),
-      0.5 * (qs.second + qs2.second));
-
-}
 
 /** Compute median in situ, t will be reordered.
  */
@@ -364,10 +337,9 @@ T RobustGaussian<T>::median(T t[], int n)
 
   //  else even:
 
-//  q = kth_smallest(t,n,n/2);
-  q = quick_select(t, n, n / 2);
-// double q2 = kth_smallest(t,n,n/2 + 1);
-  T q2 = quick_select(t, n, n / 2 + 1);
+//  q = kth_smallest(t,n,n/2 +1);
+  q = quick_select(t, n, n / 2 +1);
+  T q2 = t[n / 2];
   //cout << " n: " << n << "   " << q << "   " << q2 << endl;
 
   return 0.5 * (q + q2);
@@ -408,9 +380,12 @@ T RobustGaussian<T>::mad(T a[], int n, T d)
 
   T* t = (T *) calloc(n, sizeof(T));
   if (t == NULL)
-    ErrorExit(ERROR_NO_MEMORY,
-        "RobustGaussian<T>::mad could not allocate memory for t");
-
+  {
+    //ErrorExit(ERROR_NO_MEMORY,
+    //    "RobustGaussian<T>::mad could not allocate memory for t");
+    cerr << "ERROR: RobustGaussian<T>::mad could not allocate memory for t" << endl;
+    exit(1);
+  }
   for (int i = 0; i < n; i++)
   {
     t[i] = fabs(a[i] - medi);

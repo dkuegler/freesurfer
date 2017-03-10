@@ -40,6 +40,11 @@
 #include <vnl/algo/vnl_svd.h>
 #include <vnl/vnl_matlab_print.h>
 
+#ifdef FS_CUDA
+  #include <thrust/version.h>
+#endif
+
+
 #include "Registration.h"
 #include "RegistrationStep.h"
 #include "Regression.h"
@@ -596,9 +601,14 @@ void testcubic(Parameters & P)
 
 int main(int argc, char *argv[])
 {
-  {
-    // for valgrind, so that everything is freed
-    cout << vcid << endl << endl;
+  {  //  curly brackets for valgrind, so that everything is freed at end
+
+    std::cout << vcid << std::endl;
+#ifdef FS_CUDA
+    std::cout << "CUDA Thrust version " << THRUST_MAJOR_VERSION << "." << THRUST_MINOR_VERSION << std::endl;
+#endif
+    std::cout << std::endl;
+  
 //  setenv("SURFER_FRONTDOOR","",1) ;
     // set the environment variable
     // to store mri as chunk in memory:
@@ -611,6 +621,7 @@ int main(int argc, char *argv[])
       exit(0);
     }
     argc -= nargs;
+    
     Progname = argv[0];
     argc--;
     argv++;

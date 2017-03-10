@@ -60,6 +60,35 @@ mri_gradient_info_SOURCES=mri_gradient_info.cpp
 mri_gradient_info_LDADD = $(addprefix $(top_builddir)/, $(LIBS_MGH))
 mri_gradient_info_LDFLAGS=$(OS_LDFLAGS) $(OTHERLDFLAGS)
 
+
+## ----
+## CUDA
+## ----
+
+# BUILDCUDA is defined if configure.in finds CUDA
+if BUILDCUDA
+# rules for building cuda files
+.cu.o:
+	$(NVCC) -o $@ -c $< $(NVCCFLAGS) $(CUDA_CFLAGS) $(VXL_CFLAGS) $(AM_CFLAGS) $(MNI_CFLAGS)
+
+bin_PROGRAMS += mri_robust_register_cuda
+
+mri_robust_register_cuda_SOURCES =  RobustGaussianCuda.cu RegressionCuda.cu mri_robust_register.cpp \
+  JointHisto.cpp CostFunctions.cpp MyMatrix.cpp MyMRI.cpp \
+	Quaternion.cpp Registration.cpp RegRobust.cpp RegPowell.cpp \
+	mri_robust_register.help.xml.h 
+mri_robust_register_cuda_CFLAGS = $(CUDA_CFLAGS) $(VXL_CFLAGS) $(AM_CFLAGS) -DFS_CUDA
+mri_robust_register_cuda_CXXFLAGS = $(CUDA_CFLAGS) $(VXL_CFLAGS) $(AM_CFLAGS) -DFS_CUDA
+mri_robust_register_cuda_LDADD = $(addprefix $(top_builddir)/, $(LIBS_CUDA_MGH)) $(CUDA_LIBS) \
+        $(LIB_LAPACK) $(LIB_BLAS) $(LIB_G2C_A) $(LIB_GFORTRAN)
+mri_robust_register_cuda_LDFLAGS = $(OS_LDFLAGS) 
+mri_robust_register_cuda_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+        $(LIBTOOLFLAGS) --mode=link $(CCLD) $(mri_robust_register_cuda_CFLAGS) \
+        $(CFLAGS) $(mri_robust_register_cuda_LDFLAGS) $(LDFLAGS) -o $@
+endif
+
+
+
 # trick to get test data into the build directory
 foo_SOURCES=
 foo:

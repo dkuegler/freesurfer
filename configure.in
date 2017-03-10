@@ -891,9 +891,9 @@ if( test ! "x$CUDA_DIR" = "x" ) then
   AC_CHECK_LIB([cuda -L$CUDA_DIR/lib], [cuInit],[LIB_CUDA="-lcuda"],[])
   AC_SUBST(LIB_CUDA)
   CUDA_CFLAGS="-I$CUDA_DIR/include"
-  CUDA_LIBS="-L$CUDA_DIR/lib $LIB_CUDA -lcudart"
+  CUDA_LIBS="-L$CUDA_DIR/lib $LIB_CUDA -lcublas -lcudart"
   if test -e /usr/lib64 ; then
-    CUDA_LIBS="-L$CUDA_DIR/lib64 $LIB_CUDA -lcudart"
+    CUDA_LIBS="-L$CUDA_DIR/lib64 $LIB_CUDA -lcublas -lcudart"
   fi
   NVCC="$CUDA_DIR/bin/nvcc"
 fi
