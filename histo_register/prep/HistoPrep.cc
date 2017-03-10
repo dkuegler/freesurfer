@@ -8,6 +8,9 @@
 #include <sbl/image/ImageRegister.h>
 #include <sbl/other/Plot.h>
 #include "prep/VolumeFile.h"
+#ifdef HAVE_OPENMP
+  #include <omp.h>
+#endif
 using namespace sbl;
 namespace hb {
 
@@ -16,27 +19,71 @@ namespace hb {
 aptr<ImageGrayU> createHistologyMask( const ImageGrayU &image, const String &visPath, const String &fileName ) {
 	int width = image.width(), height = image.height();
 	int histogramBorder = 200;
-	int initThresh = 200;
-	int minSize = 200;
+	int minSize = 90;
 	bool savePlots = true;
 
 	// compute a histogram
 	VectorF hist = toFloat( imageHistogram( image, histogramBorder, width - histogramBorder, histogramBorder, height - histogramBorder ) );
+  // determine best split thresh:
+
 	hist = gaussFilter( hist, 3 );
-	int thresh = nearestMinIndex( hist, initThresh );
+	//	Plot plot2;
+	//	plot2.add( toDouble( hist ) );
+	//	String plotFileName2 = visPath + "/histogram2_" + fileName.leftOfLast( '.' ) + ".svg";
+	//	plot2.save( plotFileName2 );
+  VectorMS ms(hist);
+  //ms.print();
+  
+	disp( 1, "Total Extrema: %d", ms.totalExtrema());
+  int thresh = 0;
+  if (ms.totalExtrema() >= 5)
+  {
+	//disp( 1, "do simplifying:");
+    ms.simplifyMS(5);
+	//disp( 1, "Simplified:");
+  //ms.print();
+  if (ms.getType(0) >0)
+    thresh = ms.getIdx(3);
+  else
+    thresh = ms.getIdx(2);
+  }
+	disp( 1, "type: %d, thresh: %d", ms.getType(2), thresh );
+  
+
+	//hist = gaussFilter( hist, 3 );
+  //int maxIndex = nearestMaxIndex(hist, hist.length()-1);
+  //int thresh = nearestMinIndex( hist, maxIndex - 3);
+
+
+	//int initThresh = 200;
+  //int thresh = nearestMinIndex( hist, initThresh );
+  // better: find highest max and then move left into local min:
+  //int maxIndex = 0;
+  //double maxValue = hist[ 0 ];
+  //for (int i = 1; i < hist.length(); i++) {
+  //    float val = hist[ i ];
+  //    if (val > maxValue) {
+  //        maxValue = val;
+  //        maxIndex = i;
+  //    }
+  //} // did not work, absolute max could be in foreground, if only little background is in image!
+
 	disp( 1, "input: %s, thresh: %d, hist at thresh: %f", fileName.c_str(), thresh, hist[ thresh ] );
 
 	// extract mask
 	aptr<ImageGrayU> blur = blurGauss( image, 4 );
 	aptr<ImageGrayU> mask = threshold( *blur, (float) thresh, true );
+	//saveImage( *mask, "mask1.png" );
 	filterMaskComponents( *mask, minSize * minSize, width * height );
+	//saveImage( *mask, "mask2.png" );
 	fillMaskHoles( *mask, 30 * 30 );
-
+	//saveImage( *mask, "mask3.png" );
+  //exit(1);
 	// save histogram plot
 	if (savePlots) {
 		Plot plot;
 		plot.add( toDouble( hist ) );
-		plot.addVertLine( (double) thresh );
+		plot.addVertLine( (double) thresh +1 );
 		String plotFileName = visPath + "/histogram_" + fileName.leftOfLast( '.' ) + ".svg";
 		plot.save( plotFileName );
 	}
@@ -238,21 +285,40 @@ void prepareHistologyImages( Config &conf ) {
 	int outputWidth = 0, outputHeight = 0;
 
 	// get list of input images
-	Array<String> fileList = dirFileList( inputPath, "", "_700.png" );
+  // default is to have both wavelength available
+  // if not it reads all .png
+  bool have_wavelengths = true;
+	Array<String> fileList700 = dirFileList( inputPath, "", "_700.png" );
+	Array<String> fileList800 = dirFileList( inputPath, "", "_800.png" );
+  Array<String> fileList;
+	if (fileList700.count() == 0 && fileList800.count() ==0)
+  {
+    fileList = dirFileList( inputPath, "", ".png" ); 
+    have_wavelengths = false;
+  }
+  else if (fileList700.count() == 0 || fileList800.count() ==0)
+  { 
+		warning( "either specify no wavelength or have both 700 and 800 in: %s", inputPath.c_str() );
+		return;
+	}
+  if (fileList.count() ==0)
+    fileList = fileList700;
+  
 
 	// do two passes:
 	// 1. determine size bounds
 	// 2. save images
+  bool keepgoing = true;
 	for (int pass = 0; pass < 2; pass++) {
+    if (!keepgoing) continue;
+	  disp( 1, "Pass %d",pass );
 
 		// loop over input images
+#ifdef HAVE_OPENMP
+#pragma omp parallel for schedule(guided)
+#endif
 		for (int i = 0; i < fileList.count(); i++) {
-
-			// load input image
-			String inputFileName = inputPath + "/" + fileList[ i ];
-			aptr<ImageGrayU> image700 = load<ImageGrayU>( inputFileName );
-			aptr<ImageGrayU> image800 = load<ImageGrayU>( inputFileName.leftOfLast( '_' ) + "_800.png" );
-			int width = image700->width(), height = image700->height();
+      if (!keepgoing) continue;
 
 			// get slice numbers
 			// we assume that the file name is of the form:
@@ -260,13 +326,34 @@ void prepareHistologyImages( Config &conf ) {
 			// or:
 			//     x_sliceId2_y.png 
 			Array<String> split = fileList[ i ].split( "_" );
-			if (split.count() < 3) {
+			if (split.count() < 3 && have_wavelengths) {
 				warning( "unexpected file name format (expected at least 2 underscores)" );
-				return;
+				//return;
+        keepgoing = false;
+        continue;
+        
 			}
-			int sliceId1 = split[ split.count() - 3 ].toInt(); // will be zero if not numeric
-			int sliceId2 = split[ split.count() - 2 ].toInt();
+      else if (split.count() < 2) {
+				warning( "unexpected file name format (expected at least 1 underscore)" );
+        keepgoing = false;
+        continue;
+				//return;
+      }
+      int start = 2;
+      if (have_wavelengths) start = 3;
+			int sliceId1 = split[ split.count() - start ].toInt(); // will be zero if not numeric
+			int sliceId2 = split[ split.count() - (start-1) ].toInt();
 			disp( 2, "id1: %d, id2: %d", sliceId1, sliceId2 );
+
+			// load input image
+			String inputFileName = inputPath + "/" + fileList[ i ];
+			aptr<ImageGrayU> image700 = load<ImageGrayU>( inputFileName );
+			int width = image700->width(), height = image700->height();
+			aptr<ImageGrayU> image800;
+      if (have_wavelengths)
+        image800 = load<ImageGrayU>( inputFileName.leftOfLast( '_' ) + "_800.png" );
+      else
+        image800 = load<ImageGrayU>( inputFileName );
 
 			// compute mask
 			aptr<ImageGrayU> mask = createHistologyMask( *image700, visPath, fileList[ i ] );
@@ -285,8 +372,19 @@ void prepareHistologyImages( Config &conf ) {
 			}
 
 			// check for user cancel
-			if (checkCommandEvents())
-				return;
+#ifdef HAVE_OPENMP
+      if(omp_get_thread_num() == 0)
+#endif
+      {
+	  		if (checkCommandEvents())
+        {
+#ifdef HAVE_OPENMP
+#pragma omp critical
+#endif
+          keepgoing = false;
+	  			//return;
+        }
+      }
 		}
 
 		// check for user cancel

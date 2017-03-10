@@ -135,6 +135,7 @@ void imageStats( const ImageGrayF &img, float &min, float &mean, float &max );
 
 /// compute histogram of image pixel values
 VectorI imageHistogram( const ImageGrayU &image, int xMin, int xMax, int yMin, int yMax );
+VectorI imageHistogram( const ImageGrayU &image, int xMin, int xMax, int yMin, int yMax , int pixelstep);
 
 
 //-------------------------------------------

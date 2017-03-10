@@ -292,6 +292,33 @@ private:
 };
 
 
+/// The VectorMS class represents a Morse-Smale complex for a vector. (mr July2014)
+class VectorMS {
+public:
+    /// Construct MS complex
+    VectorMS( const VectorF &v );
+    /// Simplify MS complex to desired extrema count
+    void simplifyMS(int ecount);
+    /// Get number of total extrema
+    inline int totalExtrema() const { return m_extCount; }
+    /// Get type of a specific extremum (zero based)
+    inline int getType(int i) const { return m_extType[i]; }
+    /// Get index location in original vector of specific extremum (zero based)
+    inline int getIdx(int i)  const { return m_extIdx[i]; }
+    /// Print some stats 
+    void print();
+
+private:
+    /// extremum count
+    int m_extCount;
+    /// vector of extremum type (min = -1, max = +1)
+    VectorI m_extType;
+    /// vector of extremum index in original vector (zero based)
+    VectorI m_extIdx;
+    /// vector (size: m_extcount-1) of distances to next extremum
+    VectorF m_extDist;
+};
+
 } // end namespace sbl
 #endif // _SBL_VECTOR_UTIL_H_
 

@@ -53,7 +53,62 @@ void selectBlockFaceImageSubset( Config &conf ) {
 	}
 }
 
+aptr<ImageGrayU> roughMaskFixed( const ImageColorU &image, int fixedThresh = 30) {
 
+	// blur to remove outliers
+	aptr<ImageColorU> blurImage = blurBox( image, 3 );
+	int width = image.width(), height = image.height();
+
+	// compute mask of candidate pixels
+	int candCount = 0;
+	aptr<ImageGrayU> mask( new ImageGrayU( width, height ) );
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			int r = blurImage->r( x, y );
+			int b = blurImage->b( x, y );
+			if (r - b > fixedThresh) {
+				mask->data( x, y ) = 255;
+				candCount++;
+			} else {
+				mask->data( x, y ) = 0;
+			}
+		}
+	}
+
+	// clean up the mask
+	mask = blurBoxAndThreshold( *mask, 5, 128 );
+
+	// mark any component near the center
+	int xMin = width / 2 - width / 8;
+	int xMax = width / 2 + width / 8;
+	int yMin = height / 2 - height / 8;
+	int yMax = height / 2 + height / 8;
+	for (int y = yMin; y <= yMax; y++) {
+		for (int x = xMin; x <= xMax; x++) {
+			if (mask->data( x, y ) == 255) {
+				floodFill( *mask, 255, 255, 100, x, y );
+			}
+		}
+	}
+
+	// only keep marked components
+	int finalCount = 0;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			if (mask->data( x, y ) == 100) {
+				mask->data( x, y ) = 255;
+				finalCount++;
+			} else if (mask->data( x, y )) {
+				mask->data( x, y ) = 0;
+			}
+		}
+	}
+	disp( 1, "Rough mask: candCount: %d, finalCount: %d", candCount, finalCount );
+      
+	return mask;
+}
+
+/*
 /// compute a rough mask of a block-face image
 aptr<ImageGrayU> roughMask( const ImageColorU &image, int pixelstep = 1) {
 
@@ -61,21 +116,22 @@ aptr<ImageGrayU> roughMask( const ImageColorU &image, int pixelstep = 1) {
 	aptr<ImageColorU> blurImage = blurBox( image, 3 );
 	int width = image.width(), height = image.height();
 
-/*	// compute mask of candidate pixels
-	int candCount = 0;
-	aptr<ImageGrayU> mask( new ImageGrayU( width, height ) );
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++) {
-			int r = blurImage->r( x, y );
-			int b = blurImage->b( x, y );
-			if (r - b > 30) {
-				mask->data( x, y ) = 255;
-				candCount++;
-			} else {
-				mask->data( x, y ) = 0;
-			}
-		}
-	}*/
+//  (MR) replaced with histogram stuff below, this was really bad because of fixed cut-off at 30
+//	// compute mask of candidate pixels
+//	int candCount = 0;
+//	aptr<ImageGrayU> mask( new ImageGrayU( width, height ) );
+//	for (int y = 0; y < height; y++) {
+//		for (int x = 0; x < width; x++) {
+//			int r = blurImage->r( x, y );
+//			int b = blurImage->b( x, y );
+//			if (r - b > 30) {
+//				mask->data( x, y ) = 255;
+//				candCount++;
+//			} else {
+//				mask->data( x, y ) = 0;
+//			}
+//		}
+//	}
 
   int histogramSize = 50;
 	std::vector < int >  HistogramRaw(histogramSize,0);
@@ -188,6 +244,129 @@ aptr<ImageGrayU> roughMask( const ImageColorU &image, int pixelstep = 1) {
       
 	return mask;
 }
+*/
+
+/// compute a rough mask of a block-face image (using morse smale (mr))
+aptr<ImageGrayU> roughMask( const ImageColorU &image, int pixelstep = 1) {
+
+	// blur to remove outliers
+	aptr<ImageColorU> blurImage = blurBox( image, 3 );
+	int width = image.width(), height = image.height();
+
+  // compute difference image (red-blue)
+  aptr<ImageGrayI> rmb (new ImageGrayI( width, height ) );
+  int minrmb = 257;
+  int maxrmb = -257;
+  int rmbval;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			rmbval = blurImage->r( x, y ) - blurImage->b( x, y );
+      rmb->data( x, y) = rmbval;
+      if (rmbval < minrmb) minrmb = rmbval;
+      if (rmbval > maxrmb) maxrmb = rmbval;
+		}
+	}
+	//disp( 1, "minval: %d, maxval: %d", minrmb, maxrmb );
+  // scale to 0..255:
+  float mmm = 255.0/(maxrmb-minrmb);
+  aptr<ImageGrayU> rmbu (new ImageGrayU( width, height ) );
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+      rmbu->data( x, y) = (unsigned int)((rmb->data(x,y) - minrmb)*mmm );
+		}
+	}
+  //saveImage(*rmbu,"./rmbu.png");
+  
+  
+// compute histogram
+	int histogramBorder = 0;
+	VectorF hist = toFloat( imageHistogram( *rmbu, histogramBorder, width -1 - histogramBorder, histogramBorder, height - 1 - histogramBorder, pixelstep ) );
+//		Plot plot1;
+//		plot1.add( toDouble( hist ) );
+//		String plot1FileName = "./test1.svg";
+//		plot1.save( plot1FileName );
+	hist = gaussFilter( hist, 3 );
+
+// compute MS complex
+  VectorMS ms(hist);
+	disp( 1, "Total Extrema: %d", ms.totalExtrema());
+  int thresh = 0;
+  if (ms.totalExtrema() > 5)
+  {
+	//disp( 1, "do simplifying:");
+    ms.simplifyMS(5);
+	//disp( 1, "Simplified:");
+  //ms.print();
+  }
+  
+  if (ms.totalExtrema() < 3)
+  {
+    disp(1,"error: no segmentation possible");
+    exit(1);
+  }
+  else
+  {
+    if (ms.getType(0) > 0 )
+      thresh = ms.getIdx(1);
+    else
+      thresh = ms.getIdx(2);
+  }
+	disp( 1, "type: %d, thresh: %d, hist at thresh: %f", ms.getType(2), thresh, hist[ thresh ] );
+
+	// save histogram plot
+////	if (savePlots)
+////  {
+//		Plot plot;
+//		plot.add( toDouble( hist ) );
+//		plot.addVertLine( (double) thresh +1 );
+////		String plotFileName = visPath + "/histogram_" + fileName.leftOfLast( '.' ) + ".svg";
+//		String plotFileName = "./test.svg";
+//		plot.save( plotFileName );
+//    exit(1);
+////	}
+  
+	// extract mask
+	aptr<ImageGrayU> mask = threshold( *rmbu, (float) thresh, false );
+	//saveImage( *mask, "mask1.png" );
+
+
+	// clean up the mask
+	mask = blurBoxAndThreshold( *mask, 5, 128 );
+
+
+  // (mr) the following is similar to filterMaskComponents (used in histoseg)
+  // not sure what exactly the differences are, think the other one isdropping
+  // small regions and has a different parameter to FloodFill
+  
+	// mark any component near the center
+	int xMin = width / 2 - width / 8;
+	int xMax = width / 2 + width / 8;
+	int yMin = height / 2 - height / 8;
+	int yMax = height / 2 + height / 8;
+	for (int y = yMin; y <= yMax; y++) {
+		for (int x = xMin; x <= xMax; x++) {
+			if (mask->data( x, y ) == 255) {
+				floodFill( *mask, 255, 255, 100, x, y );
+			}
+		}
+	}
+	// only keep marked components
+	int finalCount = 0;
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			if (mask->data( x, y ) == 100) {
+				mask->data( x, y ) = 255;
+				finalCount++;
+			} else if (mask->data( x, y )) {
+				mask->data( x, y ) = 0;
+			}
+		}
+	}
+	disp( 1, "Rough mask: finalCount: %d", finalCount );
+      
+	return mask;
+}
+
 
 double normalizeBackground( ImageColorU& image, const ImageGrayU& mask)
 {

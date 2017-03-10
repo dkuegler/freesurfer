@@ -58,6 +58,9 @@ public:
     /// append a vector of values
     inline void append( const Vector &vector ) { for (int i = 0; i < vector.length(); i++) append( vector[ i ] ); }
 
+    /// remove a value at index i (expensive, but keeps data intact)
+    inline void remove ( int i ) { for (int ii = i+1; ii< m_length; ii++) m_data[ ii-1 ] = m_data[ ii ]; m_length--;}
+
     /// set all elements to the given value
     inline void clear( T val ) { for (int i = 0; i < m_length; i++) m_data[ i ] = val; }
 

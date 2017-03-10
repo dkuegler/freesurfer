@@ -65,6 +65,10 @@ bool HistoTransform::loadHToB( const String &mrRawPath, const String &mrRegLinPa
 		fileName = histoSplitPath + sprintF( "/%d.png", sliceIndex );
 		if (fileExists( fileName ) == false)
 			fileName = histoSplitPath + sprintF( "/%04d.png", sliceIndex );
+		if (fileExists( fileName ) == false)
+			fileName = histoSplitPath + sprintF( "/%d_800.png", sliceIndex );
+		if (fileExists( fileName ) == false)
+			fileName = histoSplitPath + sprintF( "/%d_700.png", sliceIndex );
 		aptr<ImageGrayU> image = sbl::load<ImageGrayU>( fileName ); // fix(faster): we could get the image dimensions without loading the entire image
 		int width = image->width(), height = image->height();
 		m_histoShrinkX.append( (double) mfWidth / (double) width );

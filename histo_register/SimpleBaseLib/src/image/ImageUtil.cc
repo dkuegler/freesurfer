@@ -561,6 +561,15 @@ VectorI imageHistogram( const ImageGrayU &image, int xMin, int xMax, int yMin, i
     return hist;
 }
 
+/// compute histogram of image pixel values
+VectorI imageHistogram( const ImageGrayU &image, int xMin, int xMax, int yMin, int yMax , int pixelstep) {
+    VectorI hist( 256 );
+    hist.clear( 0 );
+    for (int y = yMin; y <= yMax; y+=pixelstep)
+        for (int x = xMin; x <= xMax; x+=pixelstep)
+            hist[ image.data( x, y ) ]++;
+    return hist;
+}
 
 //-------------------------------------------
 // IMAGE FILE I/O

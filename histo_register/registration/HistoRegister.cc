@@ -59,6 +59,7 @@ void registerHistologySlice( int hIndex, int blockOffset,
 	int linearParamCount = 6;
 	float maskBlurSigma = 5.0f;
 	int motionScaleFactor = 1;
+	double mapFrac = 1.0;
 	bool computeFlow = true;
 	bool drawLinearBoundary = false;
 	bool saveFlow = true;
@@ -69,7 +70,7 @@ void registerHistologySlice( int hIndex, int blockOffset,
   // here load histo as gray image (probably averaging channels)
 	//aptr<ImageGrayU> hImage = load<ImageGrayU>( hFileName );
 	//int hWidth = hImage->width(), hHeight = hImage->height();
-  // here only use one channel (green):
+  // here only use one channel (green = 700 wavelength):
   aptr<ImageColorU> hImageColor = load<ImageColorU>( hFileName );
   int hWidth = hImageColor->width(), hHeight = hImageColor->height();
   aptr<ImageGrayU> hImage( new ImageGrayU( hWidth, hHeight ) );
@@ -136,9 +137,9 @@ void registerHistologySlice( int hIndex, int blockOffset,
 	aptr<ImageGrayU> hMaskFlow, hNormFlow, hImageFlow;
 	if (computeFlow) {
 		mf = varMotion( *mNorm, *hNormLinear, varMotionConfigFileName, NULL, NULL, motionScaleFactor );
-		hMaskFlow = mf->mapBackward( *hMaskLinear, 255, 0.5f );
-		hNormFlow = mf->mapBackward( *hNormLinear, 255, 0.5f );
-		hImageFlow = mf->mapBackward( *hImageLinear, 255, 0.5f );
+		hMaskFlow = mf->mapBackward( *hMaskLinear, 255, mapFrac );
+		hNormFlow = mf->mapBackward( *hNormLinear, 255, mapFrac );
+		hImageFlow = mf->mapBackward( *hImageLinear, 255, mapFrac );
 		if (saveFlow) {
 			String outputFileName = outputPath + sprintF( "/flow_%d.mf", hSliceIndex );
 			saveMotionField( *mf, outputFileName );

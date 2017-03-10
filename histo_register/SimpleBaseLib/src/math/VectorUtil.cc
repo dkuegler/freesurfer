@@ -939,6 +939,126 @@ VectorStats::VectorStats( const VectorI &v ) {
 }
 
 
+/// The VectorMS class represents a Morse-Smale complex for a vector.
+VectorMS::VectorMS( const VectorF &v )
+{
+  if (v.length() < 2) return;
+  // beginning is an extrema:
+  m_extCount = 1; 
+  if (v[0] > v[1] ) m_extType.append(1);
+  else m_extType.append(-1);
+  m_extIdx.append(0);
+
+  // find other local extrema
+  float lastval = v[0];
+  int i;
+  for (i = 1; i < v.length()-1; i++)
+  {
+    // found a local max:
+    if (v[i-1] <= v[i] && v[i+1] < v[i])
+    {
+      m_extType.append(1);
+      m_extDist.append(fabs(lastval - v[i]));
+      lastval = v[i];
+      m_extCount++;
+      m_extIdx.append(i);
+    }
+    
+    //found a local min:
+    if (v[i-1] > v[i] && v[i+1] >= v[i])
+    {
+      m_extType.append(-1);
+      m_extDist.append(fabs(lastval-v[i]));
+      lastval = v[i];
+      m_extCount++;
+      m_extIdx.append(i);
+    }
+  }
+      
+  //treat last one
+  if (v[i] >= v[i-1]) m_extType.append(1);
+  else m_extType.append(-1);
+  m_extDist.append(fabs(lastval-v[i]));
+  m_extCount++;
+  m_extIdx.append(i);
+}
+
+void VectorMS::print()
+{
+  disp(1, "Total Extrema: %d", m_extCount);
+  
+  for (int i = 0;i< m_extType.length()-1;i++)
+    disp(1, "extremum %d, type %d, idx %d, dist %f", i,m_extType[i], m_extIdx[i], m_extDist[i]);
+    
+  disp(1, "extremum %d, type %d, idx %d", m_extType.length()-1,m_extType.endValue(), m_extIdx.endValue());
+    
+}
+
+/// Simplifies MS until ecount extrema remain
+void VectorMS::simplifyMS( int ecount)
+{
+	//disp( 1, "entering simplifyMS" );
+  if (ecount >= m_extCount) return;
+	//disp( 1, "count: %d, target_count: %d", m_extCount, ecount );
+  
+  while (ecount < m_extCount && m_extCount >2)
+  {
+    // find smallest distance (and index)
+    float smallestD = m_extDist[0];
+    int   smallestId = 0;
+    for (int i = 1; i < m_extDist.length(); i++)
+    {
+      if (m_extDist[i] < smallestD)
+      {
+        smallestD = m_extDist[i];
+        smallestId = i;
+      }
+    }
+	  //disp( 1, "count: %d, smallest: %f", m_extCount, smallestD );
+    
+    // cancel out that edge
+    float dnew;
+    if (smallestId == 0)
+    {
+      // if at beginning:
+      m_extCount --;
+      dnew = m_extDist[1] - 0.5 * m_extDist[0];
+      m_extType[0] = -1 * m_extType[0];
+      m_extType.remove(smallestId+1);
+      m_extIdx.remove(smallestId+1);
+      m_extDist[ 0 ] = dnew;
+      m_extDist.remove(smallestId+1);
+    }
+    else if (smallestId == m_extDist.length() -1)
+    {
+      // if at end:
+      m_extCount --;
+      dnew = m_extDist[smallestId-1] - 0.5 * m_extDist[smallestId];
+      m_extType[smallestId+1] = -1 * m_extType[smallestId+1];
+      m_extType.remove(smallestId);
+      m_extIdx.remove(smallestId);
+      m_extDist[ smallestId-1 ] = dnew;
+      m_extDist.remove(smallestId);   
+    }
+    else
+    {
+      // if in middle:
+      m_extCount -= 2;
+      dnew = m_extDist[smallestId-1] -m_extDist[smallestId] + m_extDist[smallestId+1];
+      m_extType.remove(smallestId+1);
+      m_extType.remove(smallestId);
+      m_extIdx.remove(smallestId+1);
+      m_extIdx.remove(smallestId);
+      m_extDist[ smallestId -1 ] = dnew;
+      m_extDist.remove(smallestId+1);
+      m_extDist.remove(smallestId);
+    }
+    
+  }
+
+}
+
+
 //-------------------------------------------
 // TEST CODE
 //-------------------------------------------
